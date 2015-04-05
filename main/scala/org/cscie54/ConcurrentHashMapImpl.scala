@@ -75,7 +75,7 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
 
   def toIterable: Future[Iterable[(K, V)]] = {
-    val listOfFutureOptionOfMap: ListBuffer[Future[Option[Map[K, V]]]] = ListBuffer()
+    val listOfFutureOptionOfMap: ListBuffer[Future[Option[scala.collection.mutable.Map[K, V]]]] = ListBuffer()
 
     // collect Futures from all Actors
     for (index <- 0 until concurrencyLevel) {
@@ -83,33 +83,13 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
       val future = actorToTalkTo.ask(ToIterable())
 
-      listOfFutureOptionOfMap.+=(future.mapTo[Option[Map[K, V]]])
+      listOfFutureOptionOfMap.+=(future.mapTo[Option[scala.collection.mutable.Map[K, V]]])
     }
 
     // make it all one Future
     val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
 
     val listOfKv: ListBuffer[(K, V)] = ListBuffer()
-
-    /*
-    // make sure the combined Future completes
-
-    futureOfListOfOptionOfMap onComplete
-    {
-      case Success(listOfOptionOfMap) => for (optionOfMap <- listOfOptionOfMap)
-                                        {
-                                          optionOfMap match
-                                          {
-                                            case Some(myMap) => val myList = myMap.toList
-                                                                listOfKv ++ myList
-                                            case None => "?" //do nothing, ignore!
-                                          }
-                                        }
-
-      case Failure(e) => Future.failed(e) //does nothing, have to do smth dodgy later
-    }
-
-    */
 
     for {
       listOfOptionMap <- futureOfListOfOptionOfMap
@@ -125,7 +105,7 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
           }
       }
 
-    } yield listOfKv
+    } yield listOfKv.to[Iterable]
 
   }
 
@@ -164,7 +144,7 @@ class ConcurrentHashMapActor extends Actor
                         }
                         else
                         {
-                          sender() ! myMap
+                          sender() ! Option{myMap}
                         }
   }
 

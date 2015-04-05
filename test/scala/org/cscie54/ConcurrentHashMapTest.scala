@@ -9,8 +9,11 @@ import akka.util.Timeout
 import org.cscie54.ConcurrentHashMapImpl
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+//import scala.async.Async.{async, await}
 
 class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest"))
   with FlatSpecLike with Matchers with ScalaFutures with BeforeAndAfterAll with ParallelTestExecution {
@@ -65,23 +68,56 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
     }
 
   }
-/*
+
+
   "A concurrent hash map" should "be iterable" in {
     val map = new ConcurrentHashMapImpl(16)
+
     val key1 = "hello, world"
     val value1 = 0
 
-    val key2 = "hello, world"
+    val key2 = "hello"
     val value2 = 1
 
-    whenReady(map.put(key, value)) { _ =>
-      whenReady(map.get("bye")) {
-        _ should be(None)
+    val key3 = "world"
+    val value3 = 2
+
+    val key4 = "future"
+    val value4 = 3
+
+    val key5 = "past"
+    val value5 = 3
+
+    val key6 = "promise"
+    val value6 = 5
+
+    val listOfKeys = List(key1, key2, key3, key4, key5, key6)
+    val listOfValues = List(value1, value2, value3, value4, value5, value6)
+
+
+    val f1 = map.put(key1, value1)
+    val f2 = map.put(key2, value2)
+    val f3 = map.put(key3, value3)
+    val f4 = map.put(key4, value4)
+    val f5 = map.put(key5, value5)
+    val f6 = map.put(key6, value6)
+
+
+    val f = Future.sequence(List(f1,f2,f3, f4, f5, f6))
+
+    whenReady(f)
+    { _ =>
+      whenReady(map.toIterable) {
+        for ( itera <- _ )
+        {
+             listOfKeys  should contain (itera._1)
+             listOfValues should contain (itera._2)
+        }
       }
     }
 
   }
-*/
+
 
 
   "A concurrent hash map value" should "be overitten when the same key used" in {
