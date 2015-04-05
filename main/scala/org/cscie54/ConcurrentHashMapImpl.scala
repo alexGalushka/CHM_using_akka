@@ -91,18 +91,14 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
       listOfFutureOptionOfMap.+=(future.mapTo[Option[Map[K, V]]])
     }
 
-    // make it one Future
-    val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap.to[Iterable])
+    // make it all one Future
+    val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
 
     val listOfKv:ListBuffer[(K, V)] = ListBuffer()
 
-    val result =  Promise[Iterable[(K, V)]]
-
-    result completeWith futureOfListOfOptionOfMap
-
+    //val result = Future{listOfKv.toIterable}
 
     // make sure the combined Future completes
-    /*
     futureOfListOfOptionOfMap onComplete
     {
       case Success(listOfOptionOfMap) => for (optionOfMap <- listOfOptionOfMap)
@@ -110,15 +106,18 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
                                           optionOfMap match
                                           {
                                             case Some(myMap) => val myList = myMap.toList
-                                                                listOfKv ++ myList.to[ListBuffer]
+                                                                listOfKv ++ myList
                                             case None => "?" //do nothing, ignore!
                                           }
                                         }
-                                        Future{listOfKv.toIterable}
+
       case Failure(e) => Future.failed(e)
     }
-    */
 
+    val result = Future{listOfKv.toIterable}
+
+
+    return result
 }
 
 
