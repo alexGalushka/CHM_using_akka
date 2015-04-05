@@ -26,22 +26,19 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
   val allMapActors = scala.collection.mutable.Map.empty[Integer, ActorRef]
 
   // not sure if I need wrap initialization in the default constructor...
-    for( index <- 0 until concurrencyLevel)
-    {
-      allMapActors.put(index, actorSystem.actorOf(Props[ConcurrentHashMapActor]))
-    }
+  for (index <- 0 until concurrencyLevel) {
+    allMapActors.put(index, actorSystem.actorOf(Props[ConcurrentHashMapActor]))
+  }
 
-  private def getActorIndex(key: K) : Integer =
-  {
-    (key.hashCode() & 0x7fffffff) %  concurrencyLevel
+  private def getActorIndex(key: K): Integer = {
+    (key.hashCode() & 0x7fffffff) % concurrencyLevel
   }
 
   // create router actor
 
   implicit val timeout = Timeout(5, TimeUnit.SECONDS)
 
-  def get(key: K):Future[Option[V]] =
-  {
+  def get(key: K): Future[Option[V]] = {
 
     val actorIndex = getActorIndex(key)
 
@@ -52,23 +49,22 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
     return future.mapTo[Option[V]]
   }
 
-  def put(key: K, value: V): Future[Unit] =
-  {
+  def put(key: K, value: V): Future[Unit] = {
 
     val actorIndex = getActorIndex(key)
 
     val actorToTalkTo = allMapActors(actorIndex)
 
-    Future { actorToTalkTo ! Put(key,value) }
+    Future {
+      actorToTalkTo ! Put(key, value)
+    }
 
   }
 
-  def clear(): Future[Unit] =
-  {
+  def clear(): Future[Unit] = {
     Future {
 
-      for( index <- 0 until concurrencyLevel)
-      {
+      for (index <- 0 until concurrencyLevel) {
         val actorToTalkTo = allMapActors(index)
 
         val future = actorToTalkTo ! (Clear())
@@ -77,13 +73,12 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
   }
 
-  def toIterable: Future[Iterable[(K, V)]] =
-  {
-    val listOfFutureOptionOfMap :ListBuffer[Future[Option[Map[K, V]]]] = ListBuffer()
+
+  def toIterable: Future[Iterable[(K, V)]] = {
+    val listOfFutureOptionOfMap: ListBuffer[Future[Option[Map[K, V]]]] = ListBuffer()
 
     // collect Futures from all Actors
-    for( index <- 0 until concurrencyLevel)
-    {
+    for (index <- 0 until concurrencyLevel) {
       val actorToTalkTo = allMapActors(index)
 
       val future = actorToTalkTo.ask(ToIterable())
@@ -94,11 +89,11 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
     // make it all one Future
     val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
 
-    val listOfKv:ListBuffer[(K, V)] = ListBuffer()
+    val listOfKv: ListBuffer[(K, V)] = ListBuffer()
 
-    //val result = Future{listOfKv.toIterable}
-
+    /*
     // make sure the combined Future completes
+
     futureOfListOfOptionOfMap onComplete
     {
       case Success(listOfOptionOfMap) => for (optionOfMap <- listOfOptionOfMap)
@@ -111,16 +106,28 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
                                           }
                                         }
 
-      case Failure(e) => Future.failed(e)
+      case Failure(e) => Future.failed(e) //does nothing, have to do smth dodgy later
     }
 
-    val result = Future{listOfKv.toIterable}
+    */
 
+    for {
+      listOfOptionMap <- futureOfListOfOptionOfMap
 
-    return result
-}
+      bs = listOfOptionMap.map {
 
+        optionOfMap =>
 
+          optionOfMap match {
+            case Some(myMap) => val myList = myMap.toList
+              listOfKv ++ myList
+            case None => "?" //do nothing, ignore!
+          }
+      }
+
+    } yield listOfKv
+
+  }
 
 
   //def mapReduce(map: (K, V) => U, reduce: (U, U) => U) = ???
@@ -129,7 +136,7 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
   //Send-And-Receive-Eventually ?
 
-
+}
 
 
 class ConcurrentHashMapActor extends Actor
@@ -161,7 +168,6 @@ class ConcurrentHashMapActor extends Actor
                         }
   }
 
-  }
 
 }
 
