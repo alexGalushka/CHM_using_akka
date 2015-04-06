@@ -8,7 +8,7 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import scala.concurrent.{Future}
 import scala.concurrent.ExecutionContext.Implicits.global
-
+import java.util.ConcurrentModificationException
 
 class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest"))
   with FlatSpecLike with Matchers with ScalaFutures with BeforeAndAfterAll with ParallelTestExecution {
@@ -175,6 +175,7 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
 
     val f = Future.sequence(List(f1,f2,f3, f4, f5, f6))
 
+
     whenReady(f)
     { _ =>
       whenReady(map.mapReduce(myMap: (K, V) => U, myReduce: (U, U) => U )) {
@@ -196,7 +197,44 @@ whenReady(futureResult.failed) { ex =>
 
 */
 
+  "A concurrent hash map" should "fail fast on concurrent modification" in {
+    val map = new ConcurrentHashMapImpl(16)
 
+    val key1 = "hi"
+    val value1 = 0
+
+    val key2 = "hello"
+    val value2 = 1
+
+    val key3 = "world"
+    val value3 = 2
+
+    val key4 = "future"
+    val value4 = 3
+
+    val key5 = "past"
+    val value5 = 3
+
+    val key6 = "promise"
+    val value6 = 5
+
+
+    val f1 = map.put(key1, value1)
+    val f2 = map.put(key2, value2)
+    val f3 = map.put(key3, value3)
+    val f4 = map.put(key4, value4)
+    val f5 = map.put(key5, value5)
+    val f6 = map.put(key6, value6)
+
+    val f7 = map.failFastIterator
+
+    val f = Future.sequence(List(f1,f2,f3, f4, f5, f6, f7))
+
+    val exception = Future.failed(new ConcurrentModificationException())
+
+    whenReady(f.failed) { ex =>
+      ex shouldBe an [ConcurrentModificationException]
+    }
   /*
   it should "clear" in {
     val map = new ConcurrentHashMapImpl(16)
