@@ -130,30 +130,32 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
   }
 
 
-/*
+
   "A concurrent hash map" should "be wrapped by mapReduce" in {
     val map = new ConcurrentHashMapImpl(16)
 
-    val key1 = "hi+"
+    val key1 = "hi"
     val value1 = 0
 
-    val key2 = "hello+"
+    val key2 = "hello"
     val value2 = 1
 
-    val key3 = "world+"
+    val key3 = "world"
     val value3 = 2
 
-    val key4 = "future+"
+    val key4 = "future"
     val value4 = 3
 
-    val key5 = "past+"
+    val key5 = "past"
     val value5 = 3
 
-    val key6 = "promise+"
+    val key6 = "promise"
     val value6 = 5
 
 
-    val resultString = "hi+hello+world+future+past+promise+"
+    val resultString = "hihelloworldfuturepastpromise"
+    val listOfKeys = List(key1, key2, key3, key4, key5, key6)
+
 
     val f1 = map.put(key1, value1)
     val f2 = map.put(key2, value2)
@@ -162,30 +164,18 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
     val f5 = map.put(key5, value5)
     val f6 = map.put(key6, value6)
 
-
     val f = Future.sequence(List(f1,f2,f3, f4, f5, f6))
 
-    f onComplete {
-      case Success(good) =>
-        whenReady(map.mapReduce(myMap: (K, V) => U, myReduce: (U, U) => U )) {
-          _ should be(resultString)
-        }
-      case Failure(t) => println("An error has occured: " + t.getMessage)
-    }
-
-    /*
     whenReady(f)
     { _ =>
       whenReady(map.mapReduce(myMap: (K, V) => U, myReduce: (U, U) => U )) {
-        _ should be(resultString)
+        _.length should be(resultString.length)
       }
     }
 
-    */
-
   }
 
-*/
+
 
 
 

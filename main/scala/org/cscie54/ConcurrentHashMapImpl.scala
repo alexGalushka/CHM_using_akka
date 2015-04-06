@@ -76,36 +76,46 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
 
   def toIterable: Future[Iterable[(K, V)]] = {
-    val listOfFutureOptionOfMap: ListBuffer[Future[ListBuffer[(K, V)]]] = ListBuffer()
 
-    // collect Futures from all Actors
-    for (index <- 0 until concurrencyLevel) {
-      val actorToTalkTo = allMapActors(index)
-
-      val future = actorToTalkTo.ask(GetPartition())
-
-      listOfFutureOptionOfMap.+=(future.mapTo[ListBuffer[(K, V)]])
-    }
-
-    // make it all one Future
-    val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
-
-    //val listOfKvFuture: Future[ListBuffer[(K, V)]] = Future{ListBuffer()}
+    val futureOfListOfKVs = getAllPartitionsHelperFunc()
 
     for {
-          listOfOptionMap <- futureOfListOfOptionOfMap
-          //listOfKv <- listOfKvFuture
-          listOfKv = listOfOptionMap.flatten
+          listOfListsOfKVs <- futureOfListOfKVs
+          // flatten the list to get the list of KV pairs
+          listOfKv = listOfListsOfKVs.flatten
 
         } yield listOfKv.to[Iterable]
 
   }
 
-/*
+
   def mapReduce(map: (K, V) => U, reduce: (U, U) => U): Future[U] =
   {
+    val futureOfListOfKVs = getAllPartitionsHelperFunc()
 
-    val listOfFutureOptionOfMap: ListBuffer[Future[Option[scala.collection.mutable.Map[K, V]]]] = ListBuffer()
+    val listOfKv: ListBuffer[(K, V)] = ListBuffer()
+    val listOfUs: ListBuffer[U] = ListBuffer()
+
+    for {
+      listOfListsOfKVs <- futureOfListOfKVs
+      // flatten the list to get the list of KV pairs
+      listOfKv = listOfListsOfKVs.flatten
+
+      listOfUs = listOfKv.map {
+
+        kv => (map(kv._1,kv._2))
+
+      }
+
+      resultU = helperReduce ( listOfUs, reduce: (U, U) => U )
+
+    } yield resultU
+
+  }
+
+  private def getAllPartitionsHelperFunc () : Future[ListBuffer[ListBuffer[(K, V)]]] = {
+
+    val listOfFutureListOfKVs: ListBuffer[Future[ListBuffer[(K, V)]]] = ListBuffer()
 
     // collect Futures from all Actors
     for (index <- 0 until concurrencyLevel) {
@@ -113,43 +123,16 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
       val future = actorToTalkTo.ask(GetPartition())
 
-      listOfFutureOptionOfMap.+=(future.mapTo[Option[scala.collection.mutable.Map[K, V]]])
+      listOfFutureListOfKVs.+=(future.mapTo[ListBuffer[(K, V)]])
     }
 
     // make it all one Future
-    val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
+    val futureOfListOfKVs = Future.sequence(listOfFutureListOfKVs)
 
-    val listOfKv: ListBuffer[(K, V)] = ListBuffer()
-    val listOfUs: ListBuffer[U] = ListBuffer()
-
-    for {
-        //val listOfKv: ListBuffer[(K, V)] = ListBuffer()
-        listOfOptionMap <- futureOfListOfOptionOfMap
-
-        temp = listOfOptionMap.map {
-
-          optionOfMap => optionOfMap match
-          {
-              case Some(myMap) => val myList = myMap.toList
-                listOfKv ++ myList.to[ListBuffer]
-              case None => "?" //do nothing, ignore!
-            }
-        }
-
-        tempKV = listOfKv.map {
-
-          kv => listOfUs.+(map(kv._1,kv._2))
-
-        }
-
-        resultU = helperReduce ( listOfUs, reduce: (U, U) => U )
-
-    } yield resultU
+    return futureOfListOfKVs
   }
 
-*/
-
- /*
+  // helper reduce function: tail recursion is used to calculate reduce
   private def helperReduce ( listOfUs: ListBuffer[U], reduce: (U, U) => U ) : U = {
 
     if (1 == listOfUs.length) {
@@ -164,13 +147,23 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
           case u :: tail => reduceAccumulator(tail, reduce(accum,u))
         }
       }
-      reduceAccumulator(listOfUs.toList, listOfUs(0))
+
+      if (listOfUs(0).getClass.toString.equals("class java.lang.String")) {
+        reduceAccumulator(listOfUs.toList, "")
+      }
+      else
+      {
+        reduceAccumulator(listOfUs.toList, "0") // if U will be type defined as Int, Double... (need to remove "")
+      }
 
     }
   }
-*/
 
-  //def failFastIterator: Future[Iterable[(K, V)]] = ???
+
+  def failFastIterator: Future[Iterable[(K, V)]] =
+  {
+
+  }
 
 }
 
