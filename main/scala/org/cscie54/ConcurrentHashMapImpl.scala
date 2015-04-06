@@ -1,6 +1,7 @@
 package org.cscie54
 
 import java.util.concurrent.TimeUnit
+import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import akka.actor._
 import akka.actor.{PoisonPill, Actor, Props, ActorSystem}
@@ -75,13 +76,42 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
 
   def toIterable: Future[Iterable[(K, V)]] = {
+    val listOfFutureOptionOfMap: ListBuffer[Future[ListBuffer[(K, V)]]] = ListBuffer()
+
+    // collect Futures from all Actors
+    for (index <- 0 until concurrencyLevel) {
+      val actorToTalkTo = allMapActors(index)
+
+      val future = actorToTalkTo.ask(GetPartition())
+
+      listOfFutureOptionOfMap.+=(future.mapTo[ListBuffer[(K, V)]])
+    }
+
+    // make it all one Future
+    val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
+
+    //val listOfKvFuture: Future[ListBuffer[(K, V)]] = Future{ListBuffer()}
+
+    for {
+          listOfOptionMap <- futureOfListOfOptionOfMap
+          //listOfKv <- listOfKvFuture
+          listOfKv = listOfOptionMap.flatten
+
+        } yield listOfKv.to[Iterable]
+
+  }
+
+/*
+  def mapReduce(map: (K, V) => U, reduce: (U, U) => U): Future[U] =
+  {
+
     val listOfFutureOptionOfMap: ListBuffer[Future[Option[scala.collection.mutable.Map[K, V]]]] = ListBuffer()
 
     // collect Futures from all Actors
     for (index <- 0 until concurrencyLevel) {
       val actorToTalkTo = allMapActors(index)
 
-      val future = actorToTalkTo.ask(ToIterable())
+      val future = actorToTalkTo.ask(GetPartition())
 
       listOfFutureOptionOfMap.+=(future.mapTo[Option[scala.collection.mutable.Map[K, V]]])
     }
@@ -90,31 +120,57 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
     val futureOfListOfOptionOfMap = Future.sequence(listOfFutureOptionOfMap)
 
     val listOfKv: ListBuffer[(K, V)] = ListBuffer()
+    val listOfUs: ListBuffer[U] = ListBuffer()
 
     for {
-      listOfOptionMap <- futureOfListOfOptionOfMap
+        //val listOfKv: ListBuffer[(K, V)] = ListBuffer()
+        listOfOptionMap <- futureOfListOfOptionOfMap
 
-      bs = listOfOptionMap.map {
+        temp = listOfOptionMap.map {
 
-        optionOfMap =>
+          optionOfMap => optionOfMap match
+          {
+              case Some(myMap) => val myList = myMap.toList
+                listOfKv ++ myList.to[ListBuffer]
+              case None => "?" //do nothing, ignore!
+            }
+        }
 
-          optionOfMap match {
-            case Some(myMap) => val myList = myMap.toList
-              listOfKv ++ myList
-            case None => "?" //do nothing, ignore!
-          }
-      }
+        tempKV = listOfKv.map {
 
-    } yield listOfKv.to[Iterable]
+          kv => listOfUs.+(map(kv._1,kv._2))
 
+        }
+
+        resultU = helperReduce ( listOfUs, reduce: (U, U) => U )
+
+    } yield resultU
   }
 
+*/
 
-  //def mapReduce(map: (K, V) => U, reduce: (U, U) => U) = ???
+ /*
+  private def helperReduce ( listOfUs: ListBuffer[U], reduce: (U, U) => U ) : U = {
+
+    if (1 == listOfUs.length) {
+      return listOfUs(0)
+    }
+    else
+    {
+      @tailrec
+      def reduceAccumulator(listOfUs: List[U], accum: U): U = {
+        listOfUs match {
+          case Nil => accum
+          case u :: tail => reduceAccumulator(tail, reduce(accum,u))
+        }
+      }
+      reduceAccumulator(listOfUs.toList, listOfUs(0))
+
+    }
+  }
+*/
 
   //def failFastIterator: Future[Iterable[(K, V)]] = ???
-
-  //Send-And-Receive-Eventually ?
 
 }
 
@@ -138,14 +194,7 @@ class ConcurrentHashMapActor extends Actor
 
     case Clear() => myMap.clear()
 
-    case ToIterable() => if (myMap.isEmpty)
-                        {
-                          sender() ! None
-                        }
-                        else
-                        {
-                          sender() ! Option{myMap}
-                        }
+    case GetPartition() => sender() ! myMap.to[ListBuffer] //don't care if map is empty
   }
 
 
@@ -157,4 +206,4 @@ case class Clear()
 
 case class Put(key: K, value: V)
 
-case class ToIterable()
+case class GetPartition()

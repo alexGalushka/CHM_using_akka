@@ -6,19 +6,30 @@ import akka.actor.ActorSystem
 import akka.dispatch.Futures
 import akka.testkit.TestKit
 import akka.util.Timeout
-import org.cscie54.ConcurrentHashMapImpl
+import org.cscie54.{U, V, K, ConcurrentHashMapImpl}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
 //import scala.async.Async.{async, await}
 
 class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest"))
   with FlatSpecLike with Matchers with ScalaFutures with BeforeAndAfterAll with ParallelTestExecution {
 
-  //implicit val timeout = Timeout(20, TimeUnit.SECONDS)
+
+  def myMap(key: K, value: V): U =
+  {
+    key
+  }
+
+  def myReduce(key1:U, key2:U): U =
+  {
+    List(key1, key2).reduce(_ + _)
+  }
+
 
   "A concurrent hash map" should "put" in {
     val map = new ConcurrentHashMapImpl(16)
@@ -117,6 +128,64 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
     }
 
   }
+
+
+/*
+  "A concurrent hash map" should "be wrapped by mapReduce" in {
+    val map = new ConcurrentHashMapImpl(16)
+
+    val key1 = "hi+"
+    val value1 = 0
+
+    val key2 = "hello+"
+    val value2 = 1
+
+    val key3 = "world+"
+    val value3 = 2
+
+    val key4 = "future+"
+    val value4 = 3
+
+    val key5 = "past+"
+    val value5 = 3
+
+    val key6 = "promise+"
+    val value6 = 5
+
+
+    val resultString = "hi+hello+world+future+past+promise+"
+
+    val f1 = map.put(key1, value1)
+    val f2 = map.put(key2, value2)
+    val f3 = map.put(key3, value3)
+    val f4 = map.put(key4, value4)
+    val f5 = map.put(key5, value5)
+    val f6 = map.put(key6, value6)
+
+
+    val f = Future.sequence(List(f1,f2,f3, f4, f5, f6))
+
+    f onComplete {
+      case Success(good) =>
+        whenReady(map.mapReduce(myMap: (K, V) => U, myReduce: (U, U) => U )) {
+          _ should be(resultString)
+        }
+      case Failure(t) => println("An error has occured: " + t.getMessage)
+    }
+
+    /*
+    whenReady(f)
+    { _ =>
+      whenReady(map.mapReduce(myMap: (K, V) => U, myReduce: (U, U) => U )) {
+        _ should be(resultString)
+      }
+    }
+
+    */
+
+  }
+
+*/
 
 
 
