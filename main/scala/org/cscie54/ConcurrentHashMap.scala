@@ -8,6 +8,6 @@ trait ConcurrentHashMap {
   def toIterable: Future[Iterable[(K, V)]]
   def mapReduce(map: (K, V) => U, reduce: (U, U) => U): Future[U]
   def clear(): Future[Unit]
-  def failFastIterator: Future[Iterable[(K, V)]]
+  def failFastToIterable: Future[Iterable[(K, V)]]
 }
 

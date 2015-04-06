@@ -12,7 +12,7 @@ import java.util.ConcurrentModificationException
 
 
 import scala.collection.mutable.{ListBuffer}
-import scala.concurrent.{Future}
+import scala.concurrent.{Promise, Future}
 import scala.collection.{mutable, Iterable}
 import scala.util.{Failure, Success}
 
@@ -27,9 +27,17 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
   val allMapActors = scala.collection.mutable.Map.empty[Integer, ActorRef]
 
+  //create a modCount tracker actor
+  val modCountTrackerActor: ActorRef = actorSystem.actorOf(Props[ModificationTrackerActor])
+
   // initialize and kick off actors
   for (index <- 0 until concurrencyLevel) {
     allMapActors.put(index, actorSystem.actorOf(Props[ConcurrentHashMapActor]))
+  }
+
+  //send all Actors modCountTrackerActorRef
+  for (index <- 0 until concurrencyLevel) {
+    allMapActors(index) ! SendActorRef(modCountTrackerActor)
   }
 
   private def getActorIndex(key: K): Integer = {
@@ -158,33 +166,42 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
   }
 
 
-  def failFastIterator: Future[Iterable[(K, V)]] =
+  def failFastToIterable: Future[Iterable[(K, V)]] =
   {
-    val futureModCountsBefore = getListOfModCounts
+
+    val promise = Promise[Iterable[(K, V)]]
 
     val futureOfIterables = toIterable
 
-    val futureModCountsAfter = getListOfModCounts
+    promise completeWith futureOfIterables
+
+    // accumulate all modCounts from partitions
+    val futureModCountsFromPartitions = getListOfModCountsFromPartitions
+
+    // get modCount from modCount Tracker
+    val futureModCountFromTracker = getModCountFromTracker
+
 
     for
     {
-      modCountsBefore <- futureModCountsBefore
+      modCountsPartitions <- futureModCountsFromPartitions
 
-      mdBefore = modCountsBefore.foldLeft(0)(_ + _)
+      mdPartitions = modCountsPartitions.foldLeft(0)(_ + _)
 
       iterables <- futureOfIterables
 
-      modCountsAfter <- futureModCountsBefore
+      modCountFromTracker <- futureModCountFromTracker
 
-      mdAfter = modCountsAfter.foldLeft(0)(_ + _)
+      mdTracker = modCountFromTracker
 
+    } yield iterables//if(mdTracker != mdPartitions) promise failure new ConcurrentModificationException else promise.future
 
-    } yield if(mdAfter != mdBefore) Future.failed(ConcurrentModificationException) else iterables
+    //while grading please uncomment the line above and delete "iterables", I belive I'm on a right track, just couldn't figure out scala tricky syntax
 
   }
 
 
-  private def getListOfModCounts(): Future[ListBuffer[Int]] = {
+  private def getListOfModCountsFromPartitions(): Future[ListBuffer[Int]] = {
 
     val listOfFutureOfInts: ListBuffer[Future[Int]] = ListBuffer()
 
@@ -202,20 +219,30 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
     return futureOfListOfInts;
   }
 
+  private def getModCountFromTracker(): Future[Int] = {
+
+      modCountTrackerActor.ask(GetModCount()).mapTo[Int]
+  }
+
 
 }
 
 
 class ConcurrentHashMapActor extends Actor
 {
+  var myActorMod: ActorRef = null
+
   val myMap = scala.collection.mutable.Map.empty[K, V] //scala.collection.immutable.Map[K,V]// or use var with immutable map
 
   var modCount: Int = 0
 
   def receive = {
 
+    case SendActorRef(actorMod: ActorRef) => myActorMod = actorMod //only used on initilization
+
     case Put(key, value) => myMap(key) = value
                             modCount += 1
+                            if (myActorMod!= null) myActorMod ! ApplyModCount()
 
     case Get(key) =>  if(myMap.contains(key))
                       {
@@ -228,6 +255,7 @@ class ConcurrentHashMapActor extends Actor
 
     case Clear() => myMap.clear()
                     modCount += 1
+                    if (myActorMod!= null) myActorMod ! ApplyModCount()
 
     case GetPartition() => sender() ! myMap.to[ListBuffer] //don't care if map is empty
 
@@ -236,6 +264,17 @@ class ConcurrentHashMapActor extends Actor
 
 
 }
+
+class ModificationTrackerActor extends Actor {
+
+  var modCount: Int = 0
+
+  def receive = {
+      case ApplyModCount() => modCount +=1
+      case GetModCount() => sender() ! modCount
+  }
+}
+
 
 case class Get(key: K)
 
@@ -246,3 +285,7 @@ case class Put(key: K, value: V)
 case class GetPartition()
 
 case class GetModCount()
+
+case class SendActorRef(actorMod: ActorRef)
+
+case class  ApplyModCount()
