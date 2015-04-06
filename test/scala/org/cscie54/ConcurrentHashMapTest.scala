@@ -1,20 +1,14 @@
 package org.cscie54.a2
 
-import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.dispatch.Futures
 import akka.testkit.TestKit
-import akka.util.Timeout
 import org.cscie54.{U, V, K, ConcurrentHashMapImpl}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.duration.Duration
-import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.concurrent.{Future}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
-//import scala.async.Async.{async, await}
+
 
 class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest"))
   with FlatSpecLike with Matchers with ScalaFutures with BeforeAndAfterAll with ParallelTestExecution {
@@ -36,36 +30,33 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
     val key = "hello, world"
     val value = 0
 
-    whenReady(map.put(key, value)) { _ =>
-      whenReady(map.get(key)) {
+    whenReady(map.put(key, value))
+    { _ =>
+      whenReady(map.get(key))
+      {
         _ should be(Option(value))
       }
     }
 
-    // val pony = map.put(key, value)
-    //val res = Await.result(pony, Duration("10 seconds"))
-    //map.get(key) should be (Option(value))
-
   }
 
-  it should "clear" in {
-    val map = new ConcurrentHashMapImpl(16)
-    val key = "hello, world"
-    val value = 0
 
-    /*
-    whenReady(map.put(key, value)){ _ =>
-      whenReady(map.clear()) {
-        map. should be (0)
+  "A concurrent hash map value" should "be overitten when the same key used" in {
+    val map = new ConcurrentHashMapImpl(16)
+    val key1 = "hello, world"
+    val value1 = 0
+    val value2 = 1
+
+    whenReady(map.put(key1, value1)) { _ =>
+      whenReady(map.put(key1, value2)) { _ =>
+        whenReady(map.get(key1)) {
+          _ should be(Option(value2))
+        }
       }
     }
-*/
-    // val listFutures: List[Future]
-
-    //val future: Future[List] = Future.sequesnce(listFutures)
-
 
   }
+
 
   "A concurrent hash map" should "get null on nonexistent key" in {
     val map = new ConcurrentHashMapImpl(16)
@@ -78,6 +69,25 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
       }
     }
 
+  }
+
+
+  "A concurrent hash map" should "clear" in {
+
+    val map = new ConcurrentHashMapImpl(16)
+    val key = "hello, world"
+    val value = 0
+
+    whenReady(map.put(key, value))
+    { _ =>
+      whenReady(map.clear())
+      { _ =>
+        whenReady(map.toIterable)
+        {
+            _.size should be (0)
+        }
+      }
+    }
   }
 
 
@@ -130,7 +140,6 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
   }
 
 
-
   "A concurrent hash map" should "be wrapped by mapReduce" in {
     val map = new ConcurrentHashMapImpl(16)
 
@@ -175,25 +184,17 @@ class ConcurrentHashMapTest extends TestKit(ActorSystem("ConcurrentHashMapTest")
 
   }
 
+/*
 
+  Future.failed(new IllegalArgumentException("Invalid argument Message")
 
+then in the test,
 
-
-  "A concurrent hash map value" should "be overitten when the same key used" in {
-    val map = new ConcurrentHashMapImpl(16)
-    val key1 = "hello, world"
-    val value1 = 0
-    val value2 = 1
-
-    whenReady(map.put(key1, value1)) { _ =>
-      whenReady(map.put(key1, value2)) { _ =>
-        whenReady(map.get(key1)) {
-          _ should be(Option(value2))
-        }
-      }
+whenReady(futureResult.failed) { ex =>
+      ex shouldBe an [IllegalArgumentException]
     }
 
-  }
+*/
 
 
   /*
