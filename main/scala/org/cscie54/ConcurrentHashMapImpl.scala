@@ -196,7 +196,7 @@ class ConcurrentHashMapImpl(concurrencyLevel:Int)(implicit actorSystem: ActorSys
 
     } yield iterables//if(mdTracker != mdPartitions) promise failure new ConcurrentModificationException else promise.future
 
-    //while grading please uncomment the line above and delete "iterables", I belive I'm on a right track, just couldn't figure out scala tricky syntax
+    // TODO
 
   }
 
@@ -232,13 +232,13 @@ class ConcurrentHashMapActor extends Actor
 {
   var myActorMod: ActorRef = null
 
-  val myMap = scala.collection.mutable.Map.empty[K, V] //scala.collection.immutable.Map[K,V]// or use var with immutable map
+  val myMap = scala.collection.mutable.Map.empty[K, V]
 
   var modCount: Int = 0
 
   def receive = {
 
-    case SendActorRef(actorMod: ActorRef) => myActorMod = actorMod //only used on initilization
+    case SendActorRef(actorMod: ActorRef) => myActorMod = actorMod //only used on initialization
 
     case Put(key, value) => myMap(key) = value
                             modCount += 1
